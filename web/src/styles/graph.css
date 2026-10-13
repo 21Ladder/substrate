@@ -1,0 +1,232 @@
+/* ---------- Graph ---------- */
+
+:root {
+  --graph-edge: rgba(55, 53, 47, 0.18);
+  --graph-edge-hi: rgba(35, 131, 226, 0.85);
+}
+:root[data-theme="dark"] {
+  --graph-edge: rgba(255, 255, 255, 0.16);
+  --graph-edge-hi: rgba(82, 156, 226, 0.9);
+}
+
+.graph-canvas {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+.graph-canvas canvas {
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+.graph-canvas canvas:active {
+  cursor: grabbing;
+}
+
+.graph-page {
+  flex: 1;
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.graph-page > .graph-canvas {
+  position: absolute;
+  inset: 0;
+  height: 100% !important;
+}
+.graph-search {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  width: 280px;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+  color: var(--text-tertiary);
+  z-index: 5;
+}
+.graph-search svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.graph-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 14px;
+  color: var(--text);
+}
+.graph-stats {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  font-size: 12px;
+  z-index: 5;
+  pointer-events: none;
+}
+.graph-panel-toggle {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-card);
+  z-index: 5;
+}
+.graph-panel {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  bottom: 12px;
+  width: 280px;
+  background: var(--bg-elevated);
+  border-radius: 10px;
+  box-shadow: var(--shadow-menu);
+  overflow-y: auto;
+  z-index: 5;
+  font-size: 13px;
+}
+.graph-panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
+  z-index: 1;
+}
+.graph-panel-tabs > button:not(.icon-btn) {
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.graph-panel-tabs > button.active {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+.graph-section {
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.graph-section:last-child {
+  border-bottom: none;
+}
+.graph-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.graph-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--text);
+}
+.graph-row.check {
+  justify-content: flex-start;
+  cursor: pointer;
+}
+.graph-row.check input {
+  accent-color: var(--accent);
+}
+.graph-row select {
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-size: 13px;
+  padding: 0 4px;
+}
+.graph-row.slider input {
+  width: 120px;
+  accent-color: var(--accent);
+}
+.graph-range {
+  width: 100%;
+  accent-color: var(--accent);
+  margin: 6px 0 2px;
+}
+.graph-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.graph-list-item:hover {
+  background: var(--bg-hover);
+}
+.graph-list-item.active {
+  background: var(--accent-soft);
+}
+.graph-list-item .ellipsis {
+  flex: 1;
+  min-width: 0;
+}
+.graph-list-item .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.path-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.path-pick .btn-outline {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  line-height: 26px;
+  font-size: 13px;
+}
+.path-list {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.path-list li {
+  padding: 2px 0;
+  cursor: pointer;
+}
+.path-list li:hover {
+  color: var(--accent);
+}
+.db-graph {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.db-graph-hint {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 12px;
+  z-index: 2;
+}

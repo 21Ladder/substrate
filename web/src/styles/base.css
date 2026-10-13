@@ -1,0 +1,367 @@
+/* Design-Tokens nach dem Vorbild von Notion: ruhige Grautöne, wenig Kontrast, viel Weißraum. */
+:root {
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-serif: Lyon-Text, Georgia, ui-serif, serif;
+  --font-mono: "iawriter-mono", Nitti, Menlo, Courier, monospace;
+  --font-code: "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace;
+
+  --bg: #ffffff;
+  --bg-sidebar: #f8f8f7;
+  --bg-hover: rgba(55, 53, 47, 0.06);
+  --bg-active: rgba(55, 53, 47, 0.1);
+  --bg-elevated: #ffffff;
+  --bg-input: rgba(242, 241, 238, 0.6);
+  --bg-code: rgba(135, 131, 120, 0.15);
+  --bg-codeblock: rgb(247, 246, 243);
+  --text: rgb(55, 53, 47);
+  --text-strong: rgb(37, 35, 30);
+  --text-secondary: rgba(55, 53, 47, 0.65);
+  --text-tertiary: rgba(55, 53, 47, 0.45);
+  --text-placeholder: rgba(55, 53, 47, 0.35);
+  --border: rgba(55, 53, 47, 0.09);
+  --border-strong: rgba(55, 53, 47, 0.16);
+  --divider: rgba(55, 53, 47, 0.16);
+  --accent: rgb(35, 131, 226);
+  --accent-hover: rgb(0, 117, 211);
+  --accent-soft: rgba(35, 131, 226, 0.14);
+  --selection: rgba(35, 131, 226, 0.28);
+  --danger: rgb(235, 87, 87);
+  --shadow-menu: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
+  --shadow-card: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
+  --radius: 6px;
+  --sidebar-width: 240px;
+  --topbar-height: 44px;
+
+  /* Notion-Farbpalette (Text / Hintergrund) */
+  --c-default: rgb(55, 53, 47);
+  --c-gray: rgb(120, 119, 116);
+  --c-brown: rgb(159, 107, 83);
+  --c-orange: rgb(217, 115, 13);
+  --c-yellow: rgb(203, 145, 47);
+  --c-green: rgb(68, 131, 97);
+  --c-blue: rgb(51, 126, 169);
+  --c-purple: rgb(144, 101, 176);
+  --c-pink: rgb(193, 76, 138);
+  --c-red: rgb(212, 76, 71);
+  --bgc-default: transparent;
+  --bgc-gray: rgb(241, 241, 239);
+  --bgc-brown: rgb(244, 238, 238);
+  --bgc-orange: rgb(251, 236, 221);
+  --bgc-yellow: rgb(251, 243, 219);
+  --bgc-green: rgb(237, 243, 236);
+  --bgc-blue: rgb(231, 243, 248);
+  --bgc-purple: rgba(244, 240, 247, 0.8);
+  --bgc-pink: rgba(249, 238, 243, 0.8);
+  --bgc-red: rgb(253, 235, 236);
+  /* Tags (Auswahl-Optionen) */
+  --tag-default: rgba(227, 226, 224, 0.5);
+  --tag-gray: rgb(227, 226, 224);
+  --tag-brown: rgb(238, 224, 218);
+  --tag-orange: rgb(250, 222, 201);
+  --tag-yellow: rgb(253, 236, 200);
+  --tag-green: rgb(219, 237, 219);
+  --tag-blue: rgb(211, 229, 239);
+  --tag-purple: rgb(232, 222, 238);
+  --tag-pink: rgb(245, 224, 233);
+  --tag-red: rgb(255, 226, 221);
+  --tag-text: rgb(50, 48, 44);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #191919;
+  --bg-sidebar: #202020;
+  --bg-hover: rgba(255, 255, 255, 0.055);
+  --bg-active: rgba(255, 255, 255, 0.09);
+  --bg-elevated: #252525;
+  --bg-input: rgba(255, 255, 255, 0.055);
+  --bg-code: rgba(135, 131, 120, 0.15);
+  --bg-codeblock: rgba(255, 255, 255, 0.03);
+  --text: rgba(255, 255, 255, 0.81);
+  --text-strong: rgba(255, 255, 255, 0.9);
+  --text-secondary: rgba(255, 255, 255, 0.46);
+  --text-tertiary: rgba(255, 255, 255, 0.32);
+  --text-placeholder: rgba(255, 255, 255, 0.26);
+  --border: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.13);
+  --divider: rgba(255, 255, 255, 0.13);
+  --selection: rgba(35, 131, 226, 0.35);
+  --shadow-menu: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.2) 0 3px 6px, rgba(15, 15, 15, 0.4) 0 9px 24px;
+  --shadow-card: rgba(15, 15, 15, 0.2) 0 0 0 1px, rgba(15, 15, 15, 0.2) 0 2px 4px;
+
+  --c-default: rgba(255, 255, 255, 0.81);
+  --c-gray: rgb(155, 155, 155);
+  --c-brown: rgb(186, 133, 111);
+  --c-orange: rgb(199, 125, 72);
+  --c-yellow: rgb(202, 152, 73);
+  --c-green: rgb(82, 158, 114);
+  --c-blue: rgb(94, 135, 201);
+  --c-purple: rgb(157, 104, 211);
+  --c-pink: rgb(209, 87, 150);
+  --c-red: rgb(223, 84, 82);
+  --bgc-gray: rgb(47, 47, 47);
+  --bgc-brown: rgb(74, 50, 40);
+  --bgc-orange: rgb(92, 59, 35);
+  --bgc-yellow: rgb(86, 67, 40);
+  --bgc-green: rgb(36, 61, 48);
+  --bgc-blue: rgb(20, 58, 78);
+  --bgc-purple: rgb(60, 45, 73);
+  --bgc-pink: rgb(78, 44, 60);
+  --bgc-red: rgb(82, 46, 42);
+  --tag-default: rgba(255, 255, 255, 0.094);
+  --tag-gray: rgb(90, 90, 90);
+  --tag-brown: rgb(96, 59, 44);
+  --tag-orange: rgb(133, 76, 29);
+  --tag-yellow: rgb(137, 99, 42);
+  --tag-green: rgb(43, 89, 63);
+  --tag-blue: rgb(40, 69, 108);
+  --tag-purple: rgb(73, 47, 100);
+  --tag-pink: rgb(105, 49, 76);
+  --tag-red: rgb(110, 54, 48);
+  --tag-text: rgba(255, 255, 255, 0.88);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+.hover-bg {
+  border-radius: 4px;
+  transition: background 20ms ease-in;
+}
+.hover-bg:hover {
+  background: var(--bg-hover);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.icon-btn:hover {
+  background: var(--bg-hover);
+}
+.icon-btn.small {
+  width: 22px;
+  height: 22px;
+}
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.btn:hover {
+  background: var(--bg-hover);
+}
+.btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-weight: 500;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+.btn-outline:hover {
+  background: var(--bg-hover);
+}
+.btn-outline.danger {
+  color: var(--danger);
+  border-color: rgba(235, 87, 87, 0.5);
+}
+
+.text-input {
+  width: 100%;
+  height: 28px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: none;
+  outline: none;
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.text-input:focus {
+  box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 2px var(--accent-soft);
+}
+
+.muted {
+  color: var(--text-secondary);
+}
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scrollbars wie macOS Overlay */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(55, 53, 47, 0.18);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Farb-Hilfsklassen */
+.color-gray { color: var(--c-gray); }
+.color-brown { color: var(--c-brown); }
+.color-orange { color: var(--c-orange); }
+.color-yellow { color: var(--c-yellow); }
+.color-green { color: var(--c-green); }
+.color-blue { color: var(--c-blue); }
+.color-purple { color: var(--c-purple); }
+.color-pink { color: var(--c-pink); }
+.color-red { color: var(--c-red); }
+.bg-gray { background: var(--bgc-gray); }
+.bg-brown { background: var(--bgc-brown); }
+.bg-orange { background: var(--bgc-orange); }
+.bg-yellow { background: var(--bgc-yellow); }
+.bg-green { background: var(--bgc-green); }
+.bg-blue { background: var(--bgc-blue); }
+.bg-purple { background: var(--bgc-purple); }
+.bg-pink { background: var(--bgc-pink); }
+.bg-red { background: var(--bgc-red); }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 14px;
+  line-height: 120%;
+  color: var(--tag-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+.tag-default { background: var(--tag-default); }
+.tag-gray { background: var(--tag-gray); }
+.tag-brown { background: var(--tag-brown); }
+.tag-orange { background: var(--tag-orange); }
+.tag-yellow { background: var(--tag-yellow); }
+.tag-green { background: var(--tag-green); }
+.tag-blue { background: var(--tag-blue); }
+.tag-purple { background: var(--tag-purple); }
+.tag-pink { background: var(--tag-pink); }
+.tag-red { background: var(--tag-red); }
+
+.kbd {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* Tastaturfokus sichtbar (nur bei Tastaturbedienung, nicht bei Mausklicks) */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible:not(.ProseMirror):not([contenteditable]) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* Systemeinstellung „Bewegung reduzieren“ respektieren */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- App-Sandbox: Zugriff nur auf den eigenen Container und vom Benutzer gewählte Dateien -->
+  <key>com.apple.security.app-sandbox</key><true/>
+  <key>com.apple.security.files.user-selected.read-write</key><true/>
+  <!-- Nur ausgehend, nur für das ausdrückliche Herunterladen externer Bilder auf Klick -->
+  <key>com.apple.security.network.client</key><true/>
+  <!-- Nur für den Claude-Zugriff (MCP): lauscht ausschließlich auf 127.0.0.1 und nur, wenn eingeschaltet -->
+  <key>com.apple.security.network.server</key><true/>
+</dict>
+</plist>

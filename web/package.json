@@ -1,0 +1,34 @@
+{
+  "name": "substrat-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "TZ=Europe/Berlin node --import ./tests/register.mjs --experimental-strip-types --no-warnings --test tests/logic.test.ts"
+  },
+  "dependencies": {
+    "prosemirror-commands": "1.7.2",
+    "prosemirror-gapcursor": "1.4.1",
+    "prosemirror-history": "1.5.1",
+    "prosemirror-inputrules": "1.5.1",
+    "prosemirror-keymap": "1.2.3",
+    "prosemirror-model": "1.25.12",
+    "prosemirror-state": "1.4.4",
+    "prosemirror-transform": "1.12.2",
+    "prosemirror-view": "1.42.6",
+    "solid-js": "1.9.15"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.1",
+    "vite-plugin-solid": "2.11.14"
+  },
+  "overrides": {
+    "seroval": "1.6.8",
+    "seroval-plugins": "1.6.8"
+  },
+  "//": "seroval nur für Solids Server-Rendering (nicht im App-Bundle); auf abgesicherte Version festgelegt, solange solid-js die 7-Tage-Regel noch nicht erfüllt."
+}
