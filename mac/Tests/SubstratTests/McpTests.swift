@@ -95,7 +95,7 @@ final class McpTests: XCTestCase {
         let tools = try XCTUnwrap((json(send(raw(body: rpc("tools/list"))))["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         XCTAssertEqual(Set(tools.compactMap { $0["name"] as? String }), McpTools.names)
         for t in tools { XCTAssertTrue(JSONSerialization.isValidJSONObject(t)); XCTAssertNotNil(t["inputSchema"]) }
-        XCTAssertTrue(McpTools.names.isSuperset(of: ["search", "create_page", "append_to_page", "add_database_row", "trash_page"]))
+        XCTAssertTrue(McpTools.names.isSuperset(of: ["search", "create_page", "create_database", "append_to_page", "add_database_row", "trash_page"]))
         // Gefährliche Werkzeuge sind als destruktiv markiert
         let trash = try XCTUnwrap(tools.first { $0["name"] as? String == "trash_page" })
         XCTAssertEqual((trash["annotations"] as? [String: Any])?["destructiveHint"] as? Bool, true)

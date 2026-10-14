@@ -837,6 +837,57 @@ async function phase1() {
     await flushAll();
     check("MCP: Lesen → Zurückschreiben erhält Toggles", richMd.data.markdown.includes("<details>") && (await shape()) === richShape, richMd.data.markdown);
     await mcp("trash_page", { id: rich.data.id });
+
+    // Neue Datenbank mit Spalten und ersten Zeilen
+    const before = Object.keys(ws.pages).length;
+    const badDb = await mcp("create_database", { title: "Kaputt", properties: [{ name: "X", type: "formula" }] });
+    const badRow = await mcp("create_database", { title: "Kaputt", properties: [{ name: "S", type: "status", options: ["Offen", "Fertig"] }], rows: [{ title: "a", properties: { S: "Gibt es nicht" } }] });
+    check("MCP create_database: Fehler legen nichts an", !badDb.ok && !badRow.ok && /formula/.test(badDb.error ?? "") && /Zeile „a“/.test(badRow.error ?? "") && Object.keys(ws.pages).length === before, `${badDb.error} | ${badRow.error}`);
+    const cdb = await mcp("create_database", {
+      title: "Leseliste",
+      icon: "📚",
+      view: "board",
+      title_property: "Titel",
+      properties: [
+        { name: "Autor", type: "text" },
+        { name: "Status", type: "status", options: ["Will ich lesen", "Lese ich", "Gelesen"] },
+        { name: "Genre", type: "select", options: ["Roman"] },
+        { name: "Bewertung", type: "number" },
+        { name: "Gelesen am", type: "date" },
+        { name: "Empfehlung", type: "checkbox" },
+      ],
+      rows: [
+        { title: "Dune", properties: { Autor: "Frank Herbert", Status: "Gelesen", Genre: "Science-Fiction", Bewertung: 5, "Gelesen am": "2026-09-01", Empfehlung: true }, markdown: "<details><summary>Notizen</summary>Wüste</details>" },
+        { title: "Momo", properties: { Status: "Will ich lesen", Genre: "Roman" } },
+      ],
+    });
+    const cdbData = cdb.ok ? dbs[cdb.data.id] : undefined;
+    const statusProp = cdbData?.schema.find((p) => p.name === "Status");
+    check(
+      "MCP create_database: Spalten, Status-Gruppen, Board, neue Option aus Zeile",
+      cdb.ok && cdbData?.schema[0]?.name === "Titel" && cdbData.schema.length === 7 && statusProp?.options?.map((o) => o.group).join() === "todo,progress,done" &&
+        cdbData.views[0]?.type === "board" && cdbData.views[0]?.groupBy === statusProp?.id &&
+        cdbData.schema.find((p) => p.name === "Genre")?.options?.map((o) => o.name).join() === "Roman,Science-Fiction" &&
+        ws.pages[cdb.data.id]?.parentId === inboxId && ws.pages[cdb.data.id]?.icon === "📚",
+      JSON.stringify(cdb).slice(0, 400),
+    );
+    const dune = cdb.ok ? cdb.data.rows.find((r: any) => r.title === "Dune") : null;
+    const duneDoc = dune ? await api.getPage(dune.id) : null;
+    check(
+      "MCP create_database: Zeilen mit Werten und Inhalt",
+      cdb.data?.row_count === 2 && dune?.properties.Bewertung === 5 && dune?.properties["Gelesen am"] === "2026-09-01" && dune?.properties.Empfehlung === true && duneDoc?.content?.content?.[0]?.type === "toggle",
+      JSON.stringify(dune),
+    );
+    const inlineDb = await mcp("create_database", { title: "Eingebettet", parent_id: c1.data.id, inline: true, properties: [{ name: "Fällig", type: "date" }], view: "calendar" });
+    await flushAll();
+    const hostDoc = await api.getPage(c1.data.id);
+    check(
+      "MCP create_database inline: Block in der Seite, Kalender",
+      inlineDb.ok && JSON.stringify(hostDoc?.content).includes(`"databaseId":"${inlineDb.data.id}"`) && dbs[inlineDb.data.id]?.views[0]?.dateProp === dbs[inlineDb.data.id]?.schema.find((p) => p.name === "Fällig")?.id,
+      JSON.stringify(inlineDb).slice(0, 300),
+    );
+    if (cdb.ok) await mcp("trash_page", { id: cdb.data.id });
+    if (inlineDb.ok) await mcp("trash_page", { id: inlineDb.data.id });
     const sr = await mcp("search", { query: "Von Claude" });
     check("MCP search findet die Seite", sr.ok && sr.data.some((r: any) => r.id === c1.data.id));
     const lp = await mcp("list_pages", { parent_id: inboxId });

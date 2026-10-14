@@ -1,12 +1,13 @@
 import { createSignal } from "solid-js";
 import { Node as PMNode } from "prosemirror-model";
 import { api } from "../api/client";
-import type { DatabaseData, DatabaseRow, DocJSON, ID, PageMeta, PropertyDef } from "../api/types";
+import type { DatabaseData, DatabaseRow, DocJSON, ID, NumberFormat, PageMeta, PropertyDef, PropType, ViewType } from "../api/types";
 import { appendPageBlock, editPageContent } from "../editor/actions";
 import { analyzeDoc, mentionLinks } from "../editor/doc";
 import { docToMarkdown, markdownToDoc } from "../editor/markdown";
 import { schema } from "../editor/schema";
 import { addRow, dbs, loadDatabase, setRowProps, setRowTitle, updateSchema } from "../database/store";
+import { defaultStatusOptions, newView } from "../database/defaults";
 import { displayText, READONLY_TYPES } from "../database/properties";
 import { searchRows } from "../database/query";
 import { ancestors, childrenOf, createPage, movePage, navigation, nextSortKey, setting, setSetting, trashPage, updatePage, ws } from "../state/workspace";
@@ -363,6 +364,68 @@ async function convertAll(d: DatabaseData, raw: unknown): Promise<Record<string,
   return out;
 }
 
+// ---------- Neue Datenbank ----------
+
+const CREATABLE_TYPES = new Set<PropType>(["text", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone"]);
+const VIEW_TYPES = new Set<ViewType>(["table", "board", "list", "gallery", "calendar"]);
+const NUMBER_FORMATS = new Set<NumberFormat>(["number", "comma", "percent", "euro", "dollar"]);
+
+/** Baut das Schema aus Claudes Spaltenliste; prüft Namen, Typen und Optionen. */
+function buildSchema(rawProps: unknown, titleName: string, view: ViewType): PropertyDef[] {
+  if (rawProps !== undefined && !Array.isArray(rawProps)) throw new ToolError("„properties“ muss eine Liste von { name, type } sein");
+  const items = (rawProps as unknown[] | undefined) ?? [];
+  if (items.length > 50) throw new ToolError("Höchstens 50 Spalten");
+  const schema: PropertyDef[] = [{ id: "title", name: titleName, type: "title" }];
+  const taken = new Set([titleName.toLowerCase()]);
+  for (const item of items) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new ToolError("Jede Spalte braucht { name, type }");
+    const def = item as Args;
+    const name = str(def, "name", { required: true, max: 100 })!.trim();
+    if (!name) throw new ToolError("Spaltenname darf nicht leer sein");
+    if (taken.has(name.toLowerCase())) throw new ToolError(`Spalte „${name}“ gibt es doppelt (die Titelspalte „${titleName}“ entsteht automatisch)`);
+    taken.add(name.toLowerCase());
+    const type = str(def, "type", { required: true }) as PropType;
+    if (!CREATABLE_TYPES.has(type)) throw new ToolError(`Spaltentyp „${type}“ für „${name}“ wird nicht unterstützt. Möglich: ${[...CREATABLE_TYPES].join(", ")}`);
+    const prop: PropertyDef = { id: shortId(), name, type };
+    if (def.options !== undefined && type !== "select" && type !== "multi_select" && type !== "status") {
+      throw new ToolError(`„${name}“ (${type}) hat keine Optionen`);
+    }
+    if (type === "select" || type === "multi_select" || type === "status") {
+      if (def.options !== undefined && !Array.isArray(def.options)) throw new ToolError(`„options“ von „${name}“ muss eine Liste sein`);
+      const names = [...new Map(list(def.options ?? []).map((n) => [n.toLowerCase(), n])).values()];
+      if (names.length > 100) throw new ToolError(`„${name}“: höchstens 100 Optionen`);
+      if (names.some((n) => n.length > 100)) throw new ToolError(`„${name}“: Option zu lang (höchstens 100 Zeichen)`);
+      if (type === "status") {
+        // Erste Option = offen, letzte = erledigt, dazwischen = in Arbeit (wie Notions Status-Gruppen)
+        prop.options = names.length
+          ? names.map((n, i) => {
+              const group = i === 0 ? "todo" : i === names.length - 1 ? "done" : "progress";
+              return { id: shortId(), name: n, color: group === "todo" ? "default" : group === "done" ? "green" : "blue", group };
+            })
+          : defaultStatusOptions();
+      } else {
+        prop.options = names.map((n, i) => ({ id: shortId(), name: n, color: COLORS[1 + (i % (COLORS.length - 1))] }));
+      }
+    }
+    if (def.number_format !== undefined) {
+      if (type !== "number") throw new ToolError(`„number_format“ gilt nur für Zahlen-Spalten („${name}“ ist ${type})`);
+      if (!NUMBER_FORMATS.has(def.number_format as NumberFormat)) throw new ToolError(`Unbekanntes Zahlenformat „${String(def.number_format)}“`);
+      prop.format = def.number_format as NumberFormat;
+    }
+    schema.push(prop);
+  }
+  // Board braucht eine Gruppierung, Kalender ein Datum – fehlt es, wie beim Anlegen in der App ergänzen
+  if (view === "board" && !schema.some((p) => p.type === "status" || p.type === "select")) {
+    if (taken.has("status")) throw new ToolError("Ein Board braucht eine Status- oder Auswahl-Spalte");
+    schema.push({ id: shortId(), name: "Status", type: "status", options: defaultStatusOptions() });
+  }
+  if (view === "calendar" && !schema.some((p) => p.type === "date")) {
+    if (taken.has("datum")) throw new ToolError("Ein Kalender braucht eine Datums-Spalte");
+    schema.push({ id: shortId(), name: "Datum", type: "date" });
+  }
+  return schema;
+}
+
 // ---------- Werkzeuge ----------
 
 const TOOLS: Record<string, (args: Args) => Promise<unknown>> = {
@@ -432,6 +495,69 @@ const TOOLS: Record<string, (args: Args) => Promise<unknown>> = {
     await appendPageBlock(parent.id, meta.id);
     notify(`„${title}“ angelegt`, meta.id);
     return { ...summary(meta), url: linkOf(meta.id) };
+  },
+
+  async create_database(args) {
+    const title = str(args, "title", { required: true, max: 500 })!;
+    const ic = icon(args);
+    const view = (str(args, "view") ?? "table") as ViewType;
+    if (!VIEW_TYPES.has(view)) throw new ToolError(`Unbekannte Ansicht „${view}“. Möglich: ${[...VIEW_TYPES].join(", ")}`);
+    if (args.inline !== undefined && typeof args.inline !== "boolean") throw new ToolError("„inline“ muss true oder false sein");
+    const inline = args.inline === true;
+    const titleName = (str(args, "title_property", { max: 100 }) ?? "Name").trim() || "Name";
+    const schemaDefs = buildSchema(args.properties, titleName, view);
+
+    // Alle Zeilen vorab prüfen und umwandeln – bei einem Fehler entsteht gar nichts
+    if (args.rows !== undefined && !Array.isArray(args.rows)) throw new ToolError("„rows“ muss eine Liste sein");
+    const rawRows = (args.rows as unknown[] | undefined) ?? [];
+    if (rawRows.length > 200) throw new ToolError("Höchstens 200 Zeilen auf einmal; weitere mit add_database_row");
+    const draft = { id: "", schema: schemaDefs, rows: [], views: [] } as unknown as DatabaseData;
+    const newOptions = new Map<string, PropertyDef>();
+    const rows = rawRows.map((raw, i) => {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new ToolError(`Zeile ${i + 1}: { title, properties } erwartet`);
+      const r = raw as Args;
+      const rowTitle = str(r, "title", { required: true, max: 500 })!;
+      if (r.properties !== undefined && r.properties !== null && (typeof r.properties !== "object" || Array.isArray(r.properties))) {
+        throw new ToolError(`Zeile „${rowTitle}“: „properties“ muss ein Objekt { "Name": "Wert" } sein`);
+      }
+      const props: Record<string, unknown> = {};
+      try {
+        for (const [name, value] of Object.entries((r.properties as Record<string, unknown>) ?? {})) {
+          const prop = findProp(draft, name);
+          const v = convert(prop, value, newOptions);
+          if (v !== null) props[prop.id] = v;
+        }
+      } catch (e) {
+        throw e instanceof ToolError ? new ToolError(`Zeile „${rowTitle}“: ${e.message}`) : e;
+      }
+      const md = str(r, "markdown");
+      return { title: rowTitle, props, doc: md ? toDoc(md) : null };
+    });
+    // Optionen, die erst in den Zeilen vorkommen, gleich ins Schema übernehmen
+    const finalSchema = schemaDefs.map((p) => newOptions.get(p.id) ?? p);
+
+    const parentId = str(args, "parent_id") ?? (await inbox());
+    const parent = await writablePage(parentId);
+    const db = await createPage({
+      parentId: parent.id,
+      kind: "database",
+      inline,
+      title,
+      icon: ic ?? null,
+      sortKey: nextSortKey(parent.id),
+      schema: finalSchema,
+      views: [newView(view, finalSchema)],
+    });
+    // Wie über das /-Menü: eingebettet als Datenbank-Block, sonst als Seitenlink
+    await appendPageBlock(parent.id, db.id);
+    for (const r of rows) {
+      const row = await addRow(db.id, { title: r.title, props: r.props });
+      if (!row) throw new ToolError(`Datenbank angelegt, aber Zeile „${r.title}“ konnte nicht angelegt werden`);
+      if (r.doc) await editPageContent(row.id, () => r.doc!);
+    }
+    notify(`Datenbank „${title}“ angelegt`, db.id);
+    const d = await database(db.id);
+    return { ...summary(ws.pages[db.id] ?? db), view, inline, schema: schemaInfo(d), row_count: d.rows.length, rows: sortedRows(d).slice(0, 20).map((r) => rowInfo(d, r)), url: linkOf(db.id) };
   },
 
   async append_to_page(args) {

@@ -305,8 +305,9 @@ public enum McpTools {
     Behalte diese Schreibweisen bei, wenn du eine gelesene Seite zurückschreibst. \
     Ohne Angabe eines Ziels landen neue Seiten in der Seite „Eingang“. \
     Suche zuerst mit search, bevor du Seiten anlegst, damit nichts doppelt entsteht. \
-    Datenbank-Zeilen legst du mit add_database_row an; die Eigenschaften gibst du mit ihren Namen an \
-    (query_database oder read_page zeigt das Schema).
+    Tabellen sind Datenbanken: neue mit create_database (Spalten und erste Zeilen in einem Aufruf), \
+    Zeilen mit add_database_row; die Eigenschaften gibst du mit ihren Namen an \
+    (query_database oder read_page zeigt das Schema). Markdown-Tabellen gibt es im Text nicht.
     """
 
     private static func schema(_ properties: [String: [String: Any]], required: [String] = []) -> [String: Any] {
@@ -337,6 +338,25 @@ public enum McpTools {
                      "markdown": markdown,
                      "parent_id": ["type": "string", "description": "ID der Elternseite (optional)"],
                      "icon": ["type": "string", "description": "Ein Emoji als Symbol (optional)"]],
+                    required: ["title"])),
+        tool("create_database", "Datenbank anlegen", "Legt eine neue Datenbank (Tabelle) mit Spalten an, optional gleich mit Zeilen. Ohne parent_id landet sie in der Seite „Eingang“. Die Titelspalte entsteht automatisch – nicht in properties aufführen.",
+             schema(["title": ["type": "string", "description": "Name der Datenbank"],
+                     "parent_id": ["type": "string", "description": "ID der Elternseite (optional)"],
+                     "icon": ["type": "string", "description": "Ein Emoji als Symbol (optional)"],
+                     "view": ["type": "string", "enum": ["table", "board", "list", "gallery", "calendar"], "description": "Ansicht (Standard table). board gruppiert nach Status/Auswahl, calendar braucht eine Datumsspalte (wird sonst ergänzt)."],
+                     "inline": ["type": "boolean", "description": "true = direkt in der Elternseite eingebettet (wie /tabelle in der App – für „füge eine Tabelle in Seite X ein“), false = eigene Seite (Standard)"],
+                     "title_property": ["type": "string", "description": "Name der Titelspalte (Standard „Name“)"],
+                     "properties": ["type": "array", "maxItems": 50, "description": "Weitere Spalten in dieser Reihenfolge",
+                                    "items": ["type": "object", "additionalProperties": false, "required": ["name", "type"],
+                                              "properties": ["name": ["type": "string"],
+                                                             "type": ["type": "string", "enum": ["text", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone"]],
+                                                             "options": ["type": "array", "items": ["type": "string"], "description": "Auswahlmöglichkeiten für select, multi_select, status (bei status: erste = offen, letzte = erledigt)"],
+                                                             "number_format": ["type": "string", "enum": ["number", "comma", "percent", "euro", "dollar"]]]]],
+                     "rows": ["type": "array", "maxItems": 200, "description": "Erste Zeilen (optional): wie bei add_database_row",
+                              "items": ["type": "object", "additionalProperties": false, "required": ["title"],
+                                        "properties": ["title": ["type": "string"],
+                                                       "properties": ["type": "object", "additionalProperties": ["type": ["string", "number", "boolean", "array", "null"]]],
+                                                       "markdown": markdown]]]],
                     required: ["title"])),
         tool("append_to_page", "An Seite anhängen", "Hängt Markdown-Inhalt an das Ende einer bestehenden Seite an.",
              schema(["id": id, "markdown": markdown], required: ["id", "markdown"])),

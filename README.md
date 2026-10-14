@@ -20,7 +20,10 @@ It looks and feels like Notion, including the same keyboard shortcuts.
 ## Claude integration (MCP)
 
 If you work with [Claude Code](https://claude.com/claude-code), you can tell it things like
-*"add this as a note in Substrate"* or *"create a task in my task database"* – and it does it directly in the app.
+*"add this as a note in Substrate"*, *"make me a reading list with author, status and rating"* or
+*"create a task in my task database"* – and it does it directly in the app.
+Claude can write everything you can: headings, lists, to-dos, toggles, callouts, quotes, code, links to other pages,
+and new databases with columns and rows.
 
 How to turn it on:
 
@@ -33,7 +36,7 @@ Good to know:
 
 - It is **off by default** and you can switch it off at any time.
 - Only programs on your own Mac can connect, and only with a secret key.
-- Claude can create, edit, move and trash pages – but never delete anything permanently.
+- Claude can create, edit, move and trash pages and databases – but never delete anything permanently.
 - Substrate has to be open for this to work.
 - Claude Code stores the key in plain text in `~/.claude.json`, so any Claude Code session can use it while the switch is on.
 - Notes can contain text from elsewhere that Claude might mistake for instructions.
