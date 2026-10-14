@@ -252,10 +252,72 @@ test("CSV und Markdown-Export: Review-Fälle", () => {
   // Maskierte Backticks blockieren keine Hervorhebung
   const it = parseInline("a \\` b *c* \\` d");
   assert.ok(it.some((n) => n.text === "c" && n.marks?.some((m) => m.type === "italic")), JSON.stringify(it));
-  // Mehrzeiliger Callout bleibt vollständig im Zitat
+  // Mehrzeiliger Callout bleibt vollständig ein Callout
   const callout = { type: "doc", content: [{ type: "callout", attrs: { indent: 0, icon: "💡" }, content: [{ type: "text", text: "eins" }, { type: "hard_break" }, { type: "text", text: "zwei" }] }] };
   const cmd = docToMarkdown(callout as never);
-  assert.ok(cmd.split("\n").filter((l) => l.trim()).every((l) => l.startsWith(">")), cmd);
+  assert.deepEqual(markdownToDoc(cmd), callout, cmd);
+});
+
+test("Markdown: Toggles, Callouts und Verschachtelung überstehen die Rundreise", () => {
+  const t = (text: string, marks?: { type: string }[]) => ({ type: "text", text, ...(marks ? { marks } : {}) });
+  const doc = {
+    type: "doc",
+    content: [
+      { type: "heading", attrs: { indent: 0, level: 2 }, content: [t("Titel")] },
+      { type: "toggle", attrs: { indent: 0, open: false }, content: [t("Frage "), t("fett", [{ type: "bold" }])] },
+      { type: "paragraph", attrs: { indent: 1 }, content: [t("Antwort mit "), t("code()", [{ type: "code" }])] },
+      { type: "bullet", attrs: { indent: 1 }, content: [t("Punkt")] },
+      { type: "bullet", attrs: { indent: 2 }, content: [t("Unterpunkt")] },
+      { type: "toggle", attrs: { indent: 1, open: true }, content: [t("Innen")] },
+      { type: "code_block", attrs: { indent: 2, language: "js" }, content: [t("const a = 1;\n  return a;")] },
+      { type: "callout", attrs: { indent: 0, icon: "⚠️" }, content: [t("Achtung")] },
+      { type: "bullet", attrs: { indent: 0 }, content: [t("eins"), { type: "hard_break" }, t("zwei")] },
+      { type: "paragraph", attrs: { indent: 1 }, content: [t("Absatz unter dem Punkt")] },
+      { type: "toggle", attrs: { indent: 1, open: false }, content: [t("Toggle im Punkt")] },
+      { type: "todo", attrs: { indent: 2, checked: true }, content: [t("erledigt")] },
+      { type: "toggle", attrs: { indent: 0, open: false } },
+      { type: "quote", attrs: { indent: 0 }, content: [t("Zitat")] },
+    ],
+  };
+  const md = docToMarkdown(doc as never);
+  assert.deepEqual(JSON.parse(JSON.stringify(markdownToDoc(md))), doc, md);
+  assert.equal(docToMarkdown(markdownToDoc(md)), md, "Export ist stabil");
+});
+
+test("Markdown: Toggles so, wie Claude sie schreibt", () => {
+  const types = (md: string) => markdownToDoc(md).content!.map((b) => `${b.type}@${b.attrs?.indent}:${(b.content ?? []).map((n) => n.text ?? "↵").join("")}`);
+  // Einzeilig, eingerückt, mit Attribut und ohne Leerzeilen
+  assert.deepEqual(types("<details><summary>A</summary>Inhalt</details>"), ["toggle@0:A", "paragraph@1:Inhalt"]);
+  assert.deepEqual(types("<details open>\n  <summary>A</summary>\n  - x\n  <details>\n    <summary>B</summary>\n    y\n  </details>\n</details>\nDanach"), [
+    "toggle@0:A",
+    "bullet@1:x",
+    "toggle@1:B",
+    "paragraph@2:y",
+    "paragraph@0:Danach",
+  ]);
+  assert.equal(markdownToDoc("<details open=\"\"><summary>A</summary></details>").content![0].attrs?.open, true);
+  // Text hinter </details> geht nicht verloren; fehlendes </details> nimmt den Rest auf
+  assert.deepEqual(types("<details><summary>A</summary>x</details> danach"), ["toggle@0:A", "paragraph@1:x", "paragraph@0:danach"]);
+  assert.deepEqual(types("<details>\n<summary>A</summary>\nx"), ["toggle@0:A", "paragraph@1:x"]);
+  assert.deepEqual(types("<aside>\n💡 Tipp\n</aside>"), ["callout@0:Tipp"]);
+  // Fortsetzungszeile vs. eingerückter Absatz
+  assert.deepEqual(types("- a\n  b"), ["bullet@0:a↵b"]);
+  assert.deepEqual(types("- a\n\n  b"), ["bullet@0:a", "paragraph@1:b"]);
+  assert.ok(looksLikeMarkdown("<details><summary>A</summary>x</details>"));
+  assert.deepEqual(types("# Learn C#\n## Titel ##\n# ###"), ["heading@0:Learn C#", "heading@0:Titel", "heading@0:###"]);
+  // Tiefe Verschachtelung ist begrenzt und bleibt schnell
+  const deep = "<details>\n".repeat(20000) + "x";
+  const s = performance.now();
+  const d = markdownToDoc(deep);
+  assert.ok(performance.now() - s < 1500);
+  assert.ok(d.content!.every((b) => Number(b.attrs?.indent) <= 8));
+  // Lange Leerzeichenfolgen und offene Tags bleiben linear
+  const sp = " ".repeat(100_000);
+  for (const input of ["a" + sp + "b\nc", "- a" + sp + "x\n  b", "<details><summary>a" + sp + "b</summary></details>", "<aside>" + sp + "x", "<details>" + "<details ".repeat(10_000), "# a" + sp + "b"]) {
+    const t0 = performance.now();
+    docToMarkdown(markdownToDoc(input));
+    assert.ok(performance.now() - t0 < 500, input.slice(0, 20));
+  }
 });
 
 test("Markdown: keine doppelten Markierungen, Escapes und Code in Hervorhebungen", () => {

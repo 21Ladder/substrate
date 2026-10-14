@@ -70,6 +70,7 @@ cd web && npm run dev          # interface in the browser (test data only)
 cd mac && swift test           # tests for data storage and the Claude connection
 cd web && npm test             # tests for formulas, Markdown and import/export
 scripts/check-deps.sh          # security check of all packages
+swift scripts/make-icon.swift  # redraw the app icon (mac/AppIcon.icns)
 ```
 
 To sign the app with your own certificate (e.g. to share it with other Macs):

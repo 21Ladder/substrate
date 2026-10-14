@@ -300,7 +300,10 @@ public enum McpTools {
     static let instructions = """
     Substrat ist die lokale Notiz-App des Nutzers (ähnlich wie Notion): Seiten mit Unterseiten und Datenbanken. \
     Inhalte werden als Markdown gelesen und geschrieben. Verweise auf andere Seiten: [[Seitentitel]] oder \
-    [Titel](substrat://<id>). Ohne Angabe eines Ziels landen neue Seiten in der Seite „Eingang“. \
+    [Titel](substrat://<id>). Toggle: <details><summary>Titel</summary> Inhalt </details> (verschachtelbar). \
+    Callout: <aside>💡 Text</aside>. Code: `inline` oder ```sprache … ```. Unterpunkte mit 4 Leerzeichen einrücken. \
+    Behalte diese Schreibweisen bei, wenn du eine gelesene Seite zurückschreibst. \
+    Ohne Angabe eines Ziels landen neue Seiten in der Seite „Eingang“. \
     Suche zuerst mit search, bevor du Seiten anlegst, damit nichts doppelt entsteht. \
     Datenbank-Zeilen legst du mit add_database_row an; die Eigenschaften gibst du mit ihren Namen an \
     (query_database oder read_page zeigt das Schema).
@@ -313,7 +316,7 @@ public enum McpTools {
     }
 
     private static let id: [String: Any] = ["type": "string", "description": "ID der Seite (aus search, list_pages oder read_page)"]
-    private static let markdown: [String: Any] = ["type": "string", "description": "Inhalt als Markdown (Überschriften, Listen, To-dos „- [ ]“, Code, Zitate, [[Seitentitel]] für Verweise)"]
+    private static let markdown: [String: Any] = ["type": "string", "description": "Inhalt als Markdown: Überschriften, Listen, To-dos „- [ ]“, Zitate „>“, Trennlinie „---“, Code `inline` oder ```sprache … ```, Toggle <details><summary>Titel</summary> Inhalt </details>, Callout <aside>💡 Text</aside>, [[Seitentitel]] für Verweise. Unterpunkte mit 4 Leerzeichen einrücken."]
 
     private static func tool(_ name: String, _ title: String, _ description: String, _ input: [String: Any], readOnly: Bool = false, destructive: Bool = false, idempotent: Bool = false) -> [String: Any] {
         ["name": name, "title": title, "description": description, "inputSchema": input,

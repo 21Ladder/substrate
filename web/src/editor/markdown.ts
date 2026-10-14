@@ -55,7 +55,7 @@ function inlineToMd(nodes: DocJSON[] | undefined, titleOf: (id: string) => strin
     if (!has("code")) {
       // Leerzeichen am Rand außerhalb der Markierung halten (sonst ungültiges Markdown)
       const lead = /^\s*/.exec(t)![0];
-      const trail = /\s*$/.exec(t)![0];
+      const trail = t.slice(t.trimEnd().length); // ohne Regex: bei langen Leerzeichenfolgen linear
       let core = t.slice(lead.length, t.length - trail.length);
       if (core) {
         // Bei fett+kursiv "_" verwenden, damit "***x***" nicht mehrdeutig wird
@@ -73,46 +73,69 @@ function inlineToMd(nodes: DocJSON[] | undefined, titleOf: (id: string) => strin
   return out;
 }
 
-export function docToMarkdown(
-  doc: DocJSON | null | undefined,
-  opts: { titleOf: (id: string) => string; linkOf?: (id: string) => string; assetOf?: (src: string) => string } = { titleOf: (id) => id },
-): string {
+type MdOptions = { titleOf: (id: string) => string; linkOf?: (id: string) => string; assetOf?: (src: string) => string };
+
+const LIST_TYPES = ["bullet", "numbered", "todo"];
+
+export function docToMarkdown(doc: DocJSON | null | undefined, opts: MdOptions = { titleOf: (id) => id }): string {
+  return blocksToMd(doc?.content ?? [], 0, opts) + "\n";
+}
+
+/** Exportiert Blöcke; `base` ist der Einzug, der als Ebene 0 gilt (für den Inhalt von Toggles). */
+function blocksToMd(blocks: DocJSON[], base: number, opts: MdOptions): string {
   const lines: string[] = [];
   const counters: number[] = [];
   let prevType = "";
-  for (const b of doc?.content ?? []) {
-    const indent = Number(b.attrs?.indent ?? 0);
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    const abs = Number(b.attrs?.indent ?? 0);
+    const indent = Math.max(0, abs - base);
     const pad = "    ".repeat(indent);
     const text = inlineToMd(b.content, opts.titleOf, opts.linkOf);
     counters.length = indent + 1;
     // Ein anderer Block auf gleicher Ebene beendet die nummerierte Liste
     if (b.type !== "numbered") counters[indent] = 0;
-    const isListType = ["bullet", "numbered", "todo", "toggle"].includes(b.type);
-    // Leerzeile zwischen Absätzen, aber nicht innerhalb von Listen
-    if (lines.length && !(isListType && ["bullet", "numbered", "todo", "toggle"].includes(prevType)) && !(indent > 0)) lines.push("");
+    const isList = LIST_TYPES.includes(b.type);
+    // Leerzeile zwischen Blöcken, aber nicht innerhalb von Listen. Eingerückte Absätze brauchen sie,
+    // sonst würden sie beim Import zur Fortsetzungszeile des Listenpunkts davor.
+    if (lines.length && !(isList && LIST_TYPES.includes(prevType))) lines.push("");
+    // Zeilenumbrüche in Listenpunkten einrücken, damit die Folgezeile zum Punkt gehört
+    const listText = (marker: string) => text.replace(/\n/g, "\n" + pad + " ".repeat(marker.length));
     switch (b.type) {
       case "heading":
         lines.push(`${"#".repeat(Number(b.attrs?.level ?? 1))} ${text}`);
         break;
       case "bullet":
-        lines.push(`${pad}- ${text}`);
+        lines.push(`${pad}- ${listText("- ")}`);
         break;
-      case "numbered":
+      case "numbered": {
         counters[indent] = (counters[indent] ?? 0) + 1;
-        lines.push(`${pad}${counters[indent]}. ${text}`);
+        const marker = `${counters[indent]}. `;
+        lines.push(`${pad}${marker}${listText(marker)}`);
         break;
-      case "todo":
-        lines.push(`${pad}- [${b.attrs?.checked ? "x" : " "}] ${text}`);
+      }
+      case "todo": {
+        const marker = `- [${b.attrs?.checked ? "x" : " "}] `;
+        lines.push(`${pad}${marker}${listText(marker)}`);
         break;
-      case "toggle":
-        lines.push(`${pad}- ${text}`);
+      }
+      case "toggle": {
+        // Wie in Notions Markdown: <details>; der Inhalt sind die folgenden, tiefer eingerückten Blöcke
+        let end = i + 1;
+        while (end < blocks.length && Number(blocks[end].attrs?.indent ?? 0) > abs) end++;
+        const inner = end > i + 1 ? blocksToMd(blocks.slice(i + 1, end), abs + 1, opts) : "";
+        lines.push(`${pad}<details${b.attrs?.open ? " open" : ""}>`, `${pad}<summary>${text.split("\n").map((l) => l.trimEnd()).join(" ")}</summary>`);
+        if (inner) lines.push("", ...inner.split("\n").map((l) => (l ? pad + l : l)));
+        lines.push(`${pad}</details>`);
+        i = end - 1;
         break;
+      }
       case "quote":
         lines.push(text.split("\n").map((l) => `${pad}> ${l}`).join("\n"));
         break;
       case "callout":
-        // Jede Zeile mit „>“, sonst fällt eine zweite Zeile aus dem Zitat heraus
-        lines.push(`${b.attrs?.icon ?? "💡"} ${text}`.split("\n").map((l) => `${pad}> ${l}`).join("\n"));
+        // Wie in Notions Markdown: <aside>, damit der Import wieder einen Callout (kein Zitat) erkennt
+        lines.push(`${pad}<aside>${b.attrs?.icon ?? "💡"} ${text}</aside>`);
         break;
       case "code_block": {
         const code = (b.content ?? []).map((n) => n.text ?? "").join("");
@@ -153,7 +176,7 @@ export function docToMarkdown(
     }
     prevType = b.type;
   }
-  return lines.join("\n") + "\n";
+  return lines.join("\n");
 }
 
 // ---------- Import ----------
@@ -415,9 +438,27 @@ function block(type: string, indent: number, content: DocJSON[], attrs: Record<s
   return { type, attrs: { indent, ...attrs }, content: content.length ? content : undefined };
 }
 
+type ImportContext = InlineContext & { pageBlockFor?: (href: string) => string | null };
+
+/** Höchstens so viele ineinander geschachtelte Toggles; tiefere bleiben Text (begrenzt Aufwand und Rekursion). */
+const MAX_TOGGLE_DEPTH = 8;
+
 /** Parst Markdown in ein flaches Blockdokument. */
-export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: (href: string) => string | null } = {}): DocJSON {
-  const lines = md.replace(/\r\n?/g, "\n").split("\n");
+export function markdownToDoc(md: string, ctx: ImportContext = {}): DocJSON {
+  const blocks = parseBlocks(md.replace(/\r\n?/g, "\n").split("\n"), ctx, 0);
+  if (!blocks.length) blocks.push({ type: "paragraph", attrs: { indent: 0 } });
+  return { type: "doc", content: blocks };
+}
+
+/** Entfernt die gemeinsame Einrückung aller nicht leeren Zeilen. */
+function dedent(lines: string[]): string[] {
+  const expanded = lines.map((l) => l.replace(/\t/g, "    "));
+  let min = Infinity;
+  for (const l of expanded) if (l.trim()) min = Math.min(min, /^ */.exec(l)![0].length);
+  return min === Infinity || min === 0 ? expanded : expanded.map((l) => l.slice(Math.min(min, /^ */.exec(l)![0].length)));
+}
+
+function parseBlocks(lines: string[], ctx: ImportContext, depth: number): DocJSON[] {
   const blocks: DocJSON[] = [];
   const indentStack: number[] = []; // Spaltenpositionen für Listen-Einzüge
   const indentFor = (spaces: number) => {
@@ -425,10 +466,13 @@ export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: 
     if (!indentStack.length || indentStack[indentStack.length - 1] < spaces) indentStack.push(spaces);
     return indentStack.length - 1;
   };
+  // Eingerückte Blöcke unter einem Listenpunkt werden dessen Kinder; sonst Ebene 0
+  const nestedIndent = (spaces: number) => (spaces > 0 && indentStack.length ? indentFor(spaces) : 0);
   let para: string[] = [];
+  let paraIndent = 0;
   const flushPara = () => {
     if (para.length) {
-      blocks.push(block("paragraph", 0, parseInline(para.join("\n").replace(/ {2,}\n/g, "\n"), ctx).flatMap(splitBreaks)));
+      blocks.push(block("paragraph", paraIndent, parseInline(para.join("\n"), ctx).flatMap(splitBreaks)));
       para = [];
     }
   };
@@ -441,6 +485,58 @@ export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: 
       flushPara();
       continue;
     }
+    const afterBlank = i > 0 && !lines[i - 1].trim();
+    // Toggle wie in Notions Markdown: <details><summary>Titel</summary> … </details>
+    const details = depth < MAX_TOGGLE_DEPTH ? /^<details(\s[^>]*)?>(.*)$/i.exec(t) : null;
+    if (details) {
+      flushPara();
+      const level = nestedIndent(spaces);
+      if (!spaces) indentStack.length = 0;
+      // Inhalt bis zum passenden </details> sammeln (verschachtelte Toggles mitzählen)
+      const body: string[] = [];
+      let nest = 1;
+      let j = i;
+      let current = details[2];
+      for (;;) {
+        const tag = /<(\/?)details(?:\s[^>]{0,200})?>/gi;
+        let m: RegExpExecArray | null;
+        let cut = -1;
+        while ((m = tag.exec(current))) {
+          nest += m[1] ? -1 : 1;
+          if (nest === 0) {
+            cut = m.index;
+            break;
+          }
+        }
+        if (cut >= 0) {
+          body.push(current.slice(0, cut));
+          // Text hinter </details> in derselben Zeile normal weiterverarbeiten
+          const rest = current.slice(cut + m![0].length);
+          if (rest.trim()) {
+            lines[j] = rest;
+            j--;
+          }
+          break;
+        }
+        body.push(current);
+        if (++j >= lines.length) break;
+        current = lines[j];
+      }
+      i = j;
+      let text = body.join("\n");
+      let title = "";
+      const summary = /^\s*<summary>([\s\S]*?)<\/summary>/i.exec(text);
+      if (summary) {
+        title = summary[1].split("\n").map((l) => l.trim()).join(" ").trim();
+        text = text.slice(summary[0].length);
+      }
+      blocks.push(block("toggle", level, parseInline(title, ctx), { open: /\bopen\b/i.test(details[1] ?? "") }));
+      for (const child of parseBlocks(dedent(text.split("\n")), ctx, depth + 1)) {
+        child.attrs = { ...child.attrs, indent: Number(child.attrs?.indent ?? 0) + level + 1 };
+        blocks.push(child);
+      }
+      continue;
+    }
     // Code-Block
     const fence = /^(`{3,}|~{3,})\s*([\w+#-]*)/.exec(t);
     if (fence) {
@@ -450,15 +546,17 @@ export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: 
       while (j < lines.length && !lines[j].trim().startsWith(fence[1])) code.push(lines[j].slice(Math.min(spaces, /^ */.exec(lines[j])![0].length))), j++;
       i = j;
       const text = code.join("\n");
-      blocks.push({ type: "code_block", attrs: { indent: 0, language: fence[2] ? fence[2].toLowerCase() : "plain" }, content: text ? [{ type: "text", text }] : undefined });
+      blocks.push({ type: "code_block", attrs: { indent: nestedIndent(spaces), language: fence[2] ? fence[2].toLowerCase() : "plain" }, content: text ? [{ type: "text", text }] : undefined });
       continue;
     }
-    // Schließende "#" nur mit Leerzeichen davor entfernen ("# Learn C#" bleibt erhalten)
-    const heading = /^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/.exec(t);
+    const heading = /^(#{1,6})\s+(.*)$/.exec(t);
     if (heading && spaces < 4) {
       flushPara();
       indentStack.length = 0;
-      blocks.push(block("heading", 0, parseInline(heading[2], ctx), { level: Math.min(4, heading[1].length) }));
+      // Schließende "#" nur mit Leerzeichen davor entfernen ("# Learn C#" bleibt erhalten)
+      const closing = /\s#+$/.exec(heading[2]);
+      const htext = closing ? heading[2].slice(0, closing.index).trimEnd() : heading[2];
+      blocks.push(block("heading", 0, parseInline(htext, ctx), { level: Math.min(4, heading[1].length) }));
       continue;
     }
     if (/^([-*_])(\s*\1){2,}$/.test(t)) {
@@ -471,7 +569,7 @@ export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: 
     if (img) {
       flushPara();
       const src = ctx.resolveAsset?.(img[2]) ?? img[2];
-      blocks.push({ type: "image", attrs: { indent: spaces ? indentFor(spaces) : 0, src, caption: img[1] } });
+      blocks.push({ type: "image", attrs: { indent: nestedIndent(spaces), src, caption: img[1] } });
       continue;
     }
     // Zeile, die nur aus einem Link auf eine Unterseite besteht → Seitenblock
@@ -480,7 +578,7 @@ export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: 
       const pid = ctx.pageBlockFor(onlyLink[2]);
       if (pid) {
         flushPara();
-        blocks.push({ type: "page", attrs: { indent: 0, pageId: pid } });
+        blocks.push({ type: "page", attrs: { indent: nestedIndent(spaces), pageId: pid } });
         continue;
       }
     }
@@ -506,17 +604,17 @@ export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: 
       flushPara();
       const q: string[] = [t.replace(/^>\s?/, "")];
       while (i + 1 < lines.length && lines[i + 1].trim().startsWith(">")) q.push(lines[++i].trim().replace(/^>\s?/, ""));
-      blocks.push(block("quote", 0, parseInline(q.join("\n"), ctx).flatMap(splitBreaks)));
+      blocks.push(block("quote", nestedIndent(spaces), parseInline(q.join("\n"), ctx).flatMap(splitBreaks)));
       continue;
     }
-    // Notion exportiert Callouts als <aside>
+    // Callout wie in Notions Markdown: <aside>💡 Text</aside> (auch über mehrere Zeilen)
     if (/^<aside>/i.test(t)) {
       flushPara();
       const body: string[] = [t.replace(/^<aside>/i, "")];
-      while (i + 1 < lines.length && !/<\/aside>/i.test(body[body.length - 1])) body.push(lines[++i]);
-      const text = body.join("\n").replace(/<\/aside>/i, "").trim();
+      while (i + 1 < lines.length && !/<\/aside>/i.test(body[body.length - 1])) body.push(lines[++i].trim());
+      const text = body.join("\n").replace(/<\/aside>[\s\S]*$/i, "").trim();
       const em = /^(\p{Extended_Pictographic}️?)\s*/u.exec(text);
-      blocks.push(block("callout", 0, parseInline(em ? text.slice(em[0].length) : text, ctx).flatMap(splitBreaks), { icon: em ? em[1] : "💡" }));
+      blocks.push(block("callout", nestedIndent(spaces), parseInline(em ? text.slice(em[0].length) : text, ctx).flatMap(splitBreaks), { icon: em ? em[1] : "💡" }));
       continue;
     }
     // Tabellen werden zeilenweise als Text übernommen
@@ -527,20 +625,22 @@ export function markdownToDoc(md: string, ctx: InlineContext & { pageBlockFor?: 
       blocks.push(block("paragraph", 0, parseInline(cells.join("  ·  "), ctx)));
       continue;
     }
-    if (spaces >= 2 && indentStack.length && blocks.length && para.length === 0) {
-      // Fortsetzungszeile eines Listenpunkts
+    if (spaces >= 2 && indentStack.length && blocks.length && para.length === 0 && !afterBlank) {
+      // Fortsetzungszeile eines Listenpunkts (ohne Leerzeile davor; mit Leerzeile ist es ein eingerückter Absatz)
       const last = blocks[blocks.length - 1];
-      if (["bullet", "numbered", "todo"].includes(last.type)) {
+      if (LIST_TYPES.includes(last.type)) {
         last.content = [...(last.content ?? []), { type: "hard_break" }, ...parseInline(t, ctx)];
         continue;
       }
     }
-    indentStack.length = 0;
+    if (!para.length) {
+      paraIndent = nestedIndent(spaces);
+      if (!paraIndent) indentStack.length = 0;
+    }
     para.push(t);
   }
   flushPara();
-  if (!blocks.length) blocks.push({ type: "paragraph", attrs: { indent: 0 } });
-  return { type: "doc", content: blocks };
+  return blocks;
 }
 
 /** Zerlegt "\n" in Textknoten in hard_break-Knoten. */
@@ -557,5 +657,5 @@ function splitBreaks(n: DocJSON): DocJSON[] {
 
 /** Heuristik: sieht der eingefügte Text nach Markdown aus? */
 export function looksLikeMarkdown(text: string): boolean {
-  return /^(#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|```|- \[[ xX]\])/m.test(text) || /\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)/.test(text);
+  return /^(#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s|```|- \[[ xX]\]|<details|<aside>)/m.test(text) || /\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)/.test(text);
 }

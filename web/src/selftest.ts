@@ -823,6 +823,20 @@ async function phase1() {
     // Lesen und Suchen
     const rd = await mcp("read_page", { id: c1.data.id });
     check("MCP read_page liefert Markdown und Unterseiten", rd.ok && rd.data.markdown.includes("Ganz neuer Inhalt") && rd.data.children?.[0]?.id === child.data.id && rd.data.path === "Eingang / Von Claude", JSON.stringify(rd).slice(0, 300));
+    // Toggles, Callouts und Code so, wie Claude sie schreibt – und unverändert nach Lesen → Zurückschreiben
+    const rich = await mcp("create_page", {
+      title: "Toggles von Claude",
+      markdown: "<details>\n<summary>Frage</summary>\n\nAntwort mit `code`\n\n```js\nconst a = 1;\n```\n</details>\n\n<aside>⚠️ Wichtig</aside>",
+    });
+    await flushAll();
+    const shape = async () => ((await api.getPage(rich.data.id))?.content?.content ?? []).map((b) => `${b.type}@${b.attrs?.indent}`).join(",");
+    const richShape = await shape();
+    check("MCP: Toggle mit Inhalt, Code und Callout", rich.ok && richShape === "toggle@0,paragraph@1,code_block@1,callout@0", richShape);
+    const richMd = await mcp("read_page", { id: rich.data.id });
+    await mcp("replace_page_content", { id: rich.data.id, markdown: richMd.data.markdown });
+    await flushAll();
+    check("MCP: Lesen → Zurückschreiben erhält Toggles", richMd.data.markdown.includes("<details>") && (await shape()) === richShape, richMd.data.markdown);
+    await mcp("trash_page", { id: rich.data.id });
     const sr = await mcp("search", { query: "Von Claude" });
     check("MCP search findet die Seite", sr.ok && sr.data.some((r: any) => r.id === c1.data.id));
     const lp = await mcp("list_pages", { parent_id: inboxId });
